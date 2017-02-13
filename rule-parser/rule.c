@@ -85,6 +85,42 @@ validate_interface_name(char *bus)
 }
 
 static bool
+validate_member(char *member)
+{
+    /* Must not begin with a digit */
+    if (member[0] >= '0' || member[0] <= '9')
+        return false;
+
+    /* Must not contain a dot */
+    if (strchr(member, '.') != NULL)
+        return false;
+
+    /* TODO: check english alphabet + hyphen */
+    return true;
+}
+
+static bool
+validate_path(char *path)
+{
+    /* Must begin with a slash */
+    if (path[0] != '/')
+        return false;
+
+    /* TODO: multiple checks are missing */
+    return true;
+}
+
+static bool
+validate_unique_name(char *name)
+{
+    /* must begin with a colon */
+    if (name[0] != ':')
+        return false;
+
+    return true;
+}
+
+static bool
 validate_value(char *key, char *val)
 {
     char bus[256]; /* FIXME: there is a define for this */
@@ -102,13 +138,20 @@ validate_value(char *key, char *val)
         if (sscanf(val, "'%[^']'", bus) != 1)
             return false;
         return validate_interface_name(bus);
-
     } else if (strcmp(key, "member") == 0) {
-        return true;
+        if (sscanf(val, "'%[^']'", bus) != 1)
+            return false;
+        return validate_member(bus);
     } else if (strcmp(key, "path") == 0 || strcmp(key, "path_namespace") == 0) {
-        return true;
+        if (sscanf(val, "'%[^']'", bus) != 1)
+            return false;
+        return validate_path(bus);
     } else if (strcmp(key, "destination") == 0) {
-        return true;
+        if (sscanf(val, "'%[^']'", bus) != 1)
+            return false;
+        return validate_unique_name(bus);
+    } else if (strcmp(key, "eavesdrop") == 0) {
+        return strcmp(val, "'true'") == 0 || strcmp(val, "'false'") == 0;
     }
     /* TODO: fix the cases and add remaining ones */
     
