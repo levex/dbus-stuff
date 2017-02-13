@@ -3,6 +3,10 @@
 #include <stdbool.h>
 #include <string.h>
 
+#ifdef RUN_KLEE
+#include <klee/klee.h>
+#endif
+
 #define DEBUG
 #ifdef DEBUG
 #define d_printf printf
@@ -149,6 +153,12 @@ main(int argc, char **argv)
 
     _rule = argv[1];
     rule = strdup(_rule);
+
+#ifdef RUN_KLEE
+    free(rule);
+    rule = malloc(strlen(_rule));
+    klee_make_symbolic(rule, sizeof(char) * strlen(_rule), "rule");
+#endif
 
     elem = strtok_r(rule, ",", &lasts);
     while (elem != NULL) {
