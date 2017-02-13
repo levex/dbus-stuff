@@ -14,6 +14,42 @@
 #define d_printf(...) ;
 #endif
 
+#define TYPE_UNKNOWN            0
+#define TYPE_SIGNAL             1
+#define TYPE_METHOD_CALL        2
+#define TYPE_METHOD_RETURN      3
+#define TYPE_ERROR              4
+
+typedef char *unique_name_t;
+typedef char *bus_name_t;
+typedef char *member_name_t;
+typedef char *object_name_t;
+typedef char *interface_name_t;
+
+#define NAME_UNIQUE             1
+#define NAME_WELL_KNOWN         2
+typedef struct {
+    int n_which;
+    union {
+        unique_name_t nu_unique;
+        bus_name_t nu_well_knwon;
+    };
+} name_t;
+
+struct rule {
+    int                  r_type;
+    name_t               r_sender;
+    interface_name_t     r_interface;
+    member_name_t        r_member;
+    object_name_t        r_path;
+    object_name_t        r_path_ns;
+    unique_name_t        r_destination;
+    char                *r_args[64];
+    char                *r_argpath[64];
+    bus_name_t           r_arg0ns;
+    bool                 r_eavesdrop;
+};
+
 static bool
 test_arg(char *key)
 {
