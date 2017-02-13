@@ -161,6 +161,10 @@ validate_value(char *key, char *val)
 {
     char bus[256]; /* FIXME: there is a define for this */
 
+    d_printf("%s: \"%s\"\n", __func__, val);
+    if (strlen(val) <= 1)
+        return false;
+
     if (strcmp(key, "type") == 0) {
         return strcmp(val, "'signal'") == 0
             || strcmp(val, "'method_call'") == 0
@@ -203,7 +207,17 @@ parse_element(char *_elem)
     d_printf("%s: \"%s\"\n", __func__, elem);
 
     key = strtok_r(elem, "=", &lasts);
+    if (key == NULL) {
+        printf("Invalid rule element \"%s\", must have at least one '='\n",
+                _elem);
+        return false;
+    }
     value = key + strlen(key) + 1;
+    if (value >= elem + strlen(_elem) + 1) {
+        printf("Invalid rule element \"%s\", must have a value\n",
+                _elem);
+        return false;
+    }
 
     d_printf("%s: KEY=\"%s\" VALUE=\"%s\"\n", __func__, key, value);
     if (!validate_key(key)) {
@@ -233,16 +247,21 @@ main(int argc, char **argv)
     _rule = argv[1];
     rule = strdup(_rule);
 
-#ifdef RUN_KLEE
-    free(rule);
-    rule = malloc(strlen(_rule));
-    klee_make_symbolic(rule, sizeof(char) * strlen(_rule), "rule");
-#endif
+    if (strlen(rule) == 0)
+        return 2;
 
     elem = strtok_r(rule, ",", &lasts);
     while (elem != NULL) {
+        if (*elem == '\0')
+            goto nope;
         if (parse_element(elem) == false)
-            return 1;
+            goto nope;
         elem = strtok_r(NULL, ",", &lasts);
     }
+    printf("Rule has been successfully parsed\n");
+    return 0;
+
+nope:
+    printf("Invalid rule has been dropped\n");
+    return 1;
 }
