@@ -36,9 +36,9 @@ typedef struct {
     };
 } name_t;
 
-struct rule {
+typedef struct __rule__INTERNAL {
     int                  r_type;
-    name_t               r_sender;
+    name_t              *r_sender;
     interface_name_t     r_interface;
     member_name_t        r_member;
     object_name_t        r_path;
@@ -48,7 +48,7 @@ struct rule {
     char                *r_argpath[64];
     bus_name_t           r_arg0ns;
     bool                 r_eavesdrop;
-};
+} rule_t;
 
 static bool
 test_arg(char *key)
@@ -198,8 +198,51 @@ validate_value(char *key, char *val)
     return false;
 }
 
+static void
+rule_append(rule_t *rule, char *key, char *val)
+{
+    char bus[256];
+    int c = sscanf(val, "'%[^']'", bus);
+
+    if (strcmp(key, "type") == 0) {
+        if (strcmp(val, "'signal'") == 0)
+            rule->r_type = TYPE_SIGNAL;
+        else if (strcmp(val, "'method_call'") == 0)
+            rule->r_type = TYPE_METHOD_CALL;
+        else if (strcmp(val, "'method_return'") == 0)
+            rule->r_type = TYPE_METHOD_RETURN;
+        else if (strcmp(val, "'error'") == 0)
+            rule->r_type = TYPE_ERROR;
+    } else if (strcmp(key, "sender") == 0) {
+        name_t *name = malloc(sizeof(*name));
+        if (name == NULL)
+            return;
+        if (validate_unique_name(bus)) {
+            name->n_which = NAME_UNIQUE;
+            name->nu_unique = strdup(bus);
+        } else {
+            name->n_which = NAME_WELL_KNOWN;
+            name->nu_well_knwon = strdup(bus);
+        }
+    } else if (strcmp(key, "interface") == 0) {
+        rule->r_interface = strdup(bus);
+    } else if (strcmp(key, "member") == 0) {
+        rule->r_member = strdup(bus);
+    } else if (strcmp(key, "path") == 0) {
+        rule->r_path = strdup(bus);
+    } else if (strcmp(key, "path_namespace") == 0) {
+        rule->r_path_ns = strdup(bus);
+    } else if (strcmp(key, "destination") == 0) {
+        rule->r_destination = strdup(bus);
+    } else if (strcmp(key, "eavesdrop") == 0) {
+        if (strcmp(bus, "true") == 0)
+            rule->r_eavesdrop = true;
+        else rule->r_eavesdrop = false;
+    }
+}
+
 static bool
-parse_element(char *_elem)
+parse_element(rule_t *ret, char *_elem)
 {
     char *elem, *key, *value, *lasts;
 
@@ -230,14 +273,92 @@ parse_element(char *_elem)
         return false;
     }
 
+    rule_append(ret, key, value);
+
     free(elem);
     return true;
+}
+
+rule_t *
+parse_rule(char *rule)
+{
+    char *lasts, *elem;
+    rule_t *ret;
+
+    if (strlen(rule) == 0)
+        return NULL;
+
+    ret = calloc(1, sizeof(*ret));
+    if (ret == NULL)
+        return NULL;
+
+    elem = strtok_r(rule, ",", &lasts);
+    while (elem != NULL) {
+        if (*elem == '\0')
+            goto nope;
+        if (parse_element(ret, elem) == false)
+            goto nope;
+        elem = strtok_r(NULL, ",", &lasts);
+    }
+    return ret;
+nope:
+    free(ret);
+    return NULL;
+}
+
+void
+dump_rule(rule_t *r)
+{
+    printf("Dumping rule at 0x%p:\n", r);
+    printf("  type: %s\n", r->r_type == TYPE_SIGNAL ? "signal" :
+                            r->r_type == TYPE_METHOD_CALL ? "method_call" :
+                            r->r_type == TYPE_METHOD_RETURN ? "method_return" :
+                            r->r_type == TYPE_ERROR ? "error" : "unknown");
+    if (r->r_sender && r->r_sender->n_which == NAME_UNIQUE)
+        printf("  unique sender: %s\n", r->r_sender->nu_unique);
+    else if (r->r_sender)
+        printf("  well known sender: %s\n", r->r_sender->nu_well_knwon);
+
+    if (r->r_interface)
+        printf("  interface: %s\n", r->r_interface);
+
+    if (r->r_member)
+        printf("  member: %s\n", r->r_member);
+
+    if (r->r_path)
+        printf("  path: %s\n", r->r_path);
+
+    if (r->r_path_ns)
+        printf("  path namespace: %s\n", r->r_path_ns);
+
+    if (r->r_destination)
+        printf("  unique destination: %s\n", r->r_destination);
+
+    if (r->r_arg0ns)
+        printf("  arg 0 namespace: %s\n", r->r_arg0ns);
+
+    printf("  eavesdrop: %s\n", r->r_eavesdrop ? "true" : "false");
+}
+
+void
+free_rule(rule_t *r)
+{
+    free(r->r_sender->nu_unique);
+    free(r->r_sender);
+    free(r->r_arg0ns);
+    free(r->r_destination);
+    free(r->r_interface);
+    free(r->r_member);
+    free(r->r_path);
+    free(r->r_path_ns);
+    /* TODO: free args */
 }
 
 int
 main(int argc, char **argv)
 {
     char *_rule, *rule, *elem, *lasts;
+    rule_t *s_rule;
 
     if (argc != 2) {
         printf("USAGE: %s RULE\n", argv[0]);
@@ -247,21 +368,16 @@ main(int argc, char **argv)
     _rule = argv[1];
     rule = strdup(_rule);
 
-    if (strlen(rule) == 0)
-        return 2;
+    s_rule = parse_rule(rule);
 
-    elem = strtok_r(rule, ",", &lasts);
-    while (elem != NULL) {
-        if (*elem == '\0')
-            goto nope;
-        if (parse_element(elem) == false)
-            goto nope;
-        elem = strtok_r(NULL, ",", &lasts);
+    free(rule);
+    if (s_rule) {
+        printf("Rule has been successfully parsed\n");
+        dump_rule(s_rule);
+        return 0;
+    } else {
+        printf("Invalid rule has been dropped\n");
+        return -1;
     }
-    printf("Rule has been successfully parsed\n");
-    return 0;
 
-nope:
-    printf("Invalid rule has been dropped\n");
-    return 1;
 }
