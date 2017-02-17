@@ -2,7 +2,10 @@
 // Copyright 2017 (c) Levente Kurusa <lkurusa@acm.org>
 
 #include <dbus/dbus.h>
+#include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int
 main(int argc, char *argv[])
@@ -64,6 +67,9 @@ main(int argc, char *argv[])
             else {
                 dbus_message_iter_get_basic(&args, &sigvalue);
                 printf("Got Signal with value \"%s\"\n", sigvalue);
+                if (strcmp(sigvalue, "HELLO") == 0)
+                    assert(0);
+                break;
             }
         }
 
