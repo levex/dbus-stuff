@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if [[ -e "dbus.pid" ]]
 then kill `cat dbus.pid`

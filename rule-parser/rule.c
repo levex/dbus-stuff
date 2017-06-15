@@ -379,5 +379,4 @@ main(int argc, char **argv)
         printf("Invalid rule has been dropped\n");
         return -1;
     }
-
 }
